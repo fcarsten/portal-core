@@ -40,10 +40,14 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.CreateTagsRequest;
 import com.amazonaws.services.ec2.model.DescribeInstanceStatusRequest;
 import com.amazonaws.services.ec2.model.DescribeInstanceStatusResult;
+import com.amazonaws.services.ec2.model.EbsInstanceBlockDeviceSpecification;
 import com.amazonaws.services.ec2.model.GetConsoleOutputRequest;
 import com.amazonaws.services.ec2.model.GetConsoleOutputResult;
 import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
 import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.InstanceBlockDeviceMapping;
+import com.amazonaws.services.ec2.model.InstanceBlockDeviceMappingSpecification;
+import com.amazonaws.services.ec2.model.ModifyInstanceAttributeRequest;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
 import com.amazonaws.services.ec2.model.Tag;
@@ -216,7 +220,22 @@ public class CloudComputeServiceAws extends CloudComputeService {
                 .withTags(new Tag("Name", "ANVGL - Job: " + job.getId()));
         ec2.createTags(createTagsRequest);
 
+        explicitlySetRootEbsToDelete(ec2, instance);
         return instance.getInstanceId();
+    }
+
+    private void explicitlySetRootEbsToDelete(AmazonEC2 ec2Client, Instance instance) {
+        EbsInstanceBlockDeviceSpecification ebsSpecification = new EbsInstanceBlockDeviceSpecification()
+                .withDeleteOnTermination(true);
+
+        InstanceBlockDeviceMappingSpecification mappingSpecification = new InstanceBlockDeviceMappingSpecification()
+                .withDeviceName(instance.getRootDeviceName()).withEbs(ebsSpecification);
+
+        ModifyInstanceAttributeRequest request = new ModifyInstanceAttributeRequest()
+                .withInstanceId(instance.getInstanceId()).withBlockDeviceMappings(mappingSpecification);
+
+        ec2Client.modifyInstanceAttribute(request);
+
     }
 
     /**
