@@ -1,5 +1,6 @@
 package org.auscope.portal.core.server.security.oauth2;
 
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,8 +25,9 @@ public class GoogleOAuth2ServiceProperties extends OAuth2ServiceProperties {
      *            The google OAuth2 client secret
      * @param redirectUri
      *            The URI to receive the access_token from Google. eg: http://localhost:8080/portal/oauth/callback
+     * @throws URISyntaxException 
      */
-    public GoogleOAuth2ServiceProperties(String clientId, String clientSecret, String redirectUri) {
+    public GoogleOAuth2ServiceProperties(String clientId, String clientSecret, String redirectUri) throws URISyntaxException {
         super();
 
         this.setUserAuthorisationUri("https://accounts.google.com/o/oauth2/auth");

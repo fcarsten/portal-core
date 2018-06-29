@@ -1,17 +1,22 @@
 package org.auscope.portal.core.services;
 
-import com.hp.hpl.jena.rdf.model.*;
+import java.util.Map;
+import java.util.Set;
+
 import org.auscope.portal.core.test.PortalTestClass;
 import org.jmock.Expectations;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.validation.constraints.AssertTrue;
-import java.util.Map;
-import java.util.Set;
-
-import static org.junit.Assert.*;
+import com.hp.hpl.jena.rdf.model.Model;
+import com.hp.hpl.jena.rdf.model.ModelFactory;
+import com.hp.hpl.jena.rdf.model.Property;
+import com.hp.hpl.jena.rdf.model.Resource;
+import com.hp.hpl.jena.rdf.model.ResourceFactory;
+import com.hp.hpl.jena.rdf.model.Selector;
+import com.hp.hpl.jena.rdf.model.SimpleSelector;
+import com.hp.hpl.jena.rdf.model.Statement;
 
 public class TestVocabularyFilterService extends PortalTestClass {
 

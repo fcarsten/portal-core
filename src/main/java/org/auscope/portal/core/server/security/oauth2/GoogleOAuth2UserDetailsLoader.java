@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import com.racquettrack.security.oauth.OAuth2UserDetailsLoader;
 
@@ -23,7 +22,7 @@ import com.racquettrack.security.oauth.OAuth2UserDetailsLoader;
  *
  */
 public class GoogleOAuth2UserDetailsLoader implements
-OAuth2UserDetailsLoader<PortalUser> {
+OAuth2UserDetailsLoader<PortalUser, String> {
 
     protected String defaultRole;
     protected Map<String, List<SimpleGrantedAuthority>> rolesByUser;
@@ -87,7 +86,7 @@ OAuth2UserDetailsLoader<PortalUser> {
     }
 
     @Override
-    public UserDetails createUser(String id, Map<String, Object> userInfo) {
+    public PortalUser createUser(String id, Map<String, Object> userInfo) {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority(defaultRole));
         if (rolesByUser != null) {
@@ -103,11 +102,11 @@ OAuth2UserDetailsLoader<PortalUser> {
     }
 
     @Override
-    public UserDetails updateUser(UserDetails userDetails,
+    public PortalUser updateUser(PortalUser userDetails,
             Map<String, Object> userInfo) {
 
         if (userDetails instanceof PortalUser) {
-            applyInfoToUser((PortalUser) userDetails, userInfo);
+            applyInfoToUser(userDetails, userInfo);
         }
 
         return userDetails;
