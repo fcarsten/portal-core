@@ -6,21 +6,22 @@ import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
-import org.apache.commons.httpclient.ConnectTimeoutException;
-import org.apache.commons.httpclient.HttpException;
-import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.conn.HttpClientConnectionManager;
+import org.apache.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 
@@ -293,7 +294,7 @@ public class HttpServiceCaller {
         HttpResponse response = client.execute(method);
 
         int statusCode = response.getStatusLine().getStatusCode();
-        String statusCodeText = HttpStatus.getStatusText(statusCode);
+        String statusCodeText =  EnglishReasonPhraseCatalog.INSTANCE.getReason(statusCode, null);
         log.trace("Status code text: '"+statusCodeText+"'");
 
         if (statusCode != HttpStatus.SC_OK &&
@@ -310,7 +311,7 @@ public class HttpServiceCaller {
                 String responseBody = responseToString(response.getEntity().getContent());
                 log.trace("Returned response body: " + responseBody);
             }
-            throw new HttpException(statusCodeText);
+            throw new IOException("HTTP STATUS ERROR: "+statusCodeText);
         } else {
             return response;
         }
