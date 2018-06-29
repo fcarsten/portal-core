@@ -40,6 +40,8 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import com.amazonaws.services.sqs.model.UnsupportedOperationException;
+
 /**
  * Handles GetCapabilites (WFS)WMS queries.
  *
@@ -303,14 +305,93 @@ public class WMSController extends BaseCSWController {
         InputStream responseStream = new ByteArrayInputStream(responseString.getBytes());
         FileIOUtil.writeInputToOutputStream(responseStream, response.getOutputStream(), BUFFERSIZE, true);
     }
+    /**
+    * get the default style for polygon Layer
+    * @param response
+    * @param layerName 
+    * 			the layName 
+    * @throws Exception
+    */
+    @RequestMapping("/getDefaultPolygonStyle.do")
+    public void getDefaultPolygonStyle( 
+            HttpServletResponse response,    		
+            @RequestParam(required = false, value = "layerName") String layerName,
+            @RequestParam(required = false, value = "colour") Integer colour)
+                    throws Exception {
+        if (colour == null) {
+            colour = 0xed9c38; 
+        }
+        String hexColour="#" + Integer.toHexString(colour);    	
+        String style = this.getStyle(layerName, hexColour, "POLYGON");
 
+        response.setContentType("text/xml");
+
+        ByteArrayInputStream styleStream = new ByteArrayInputStream(
+                style.getBytes());
+        OutputStream outputStream = response.getOutputStream();
+
+        FileIOUtil.writeInputToOutputStream(styleStream, outputStream, 1024, false);
+
+        styleStream.close();
+        outputStream.close();
+    }
+
+
+    /**
+     * Gets the LegendURL from the getCapabilities record if it is defined there.
+     * TODO I think this should be the default but at the moment it is not being used at all.
+     *
+     * @param serviceUrl The WMS URL to query
+     */
+    @RequestMapping("/getLegendURL.do")
+    public ModelAndView getLegendURL(
+            @RequestParam("serviceUrl") String serviceUrl,
+            @RequestParam("wmsVersion") String wmsVersion,
+            @RequestParam("layerName") String layerName) throws Exception {
+
+        try {
+            /*
+             * It might be preferable to create a nicer way of getting the data for the specific layer
+             * This implementation just loops through the whole capabilities document looking for the layer.
+             */
+            GetCapabilitiesRecord getCapabilitiesRecord =
+                    wmsService.getWmsCapabilities(serviceUrl, wmsVersion);
+
+            String url = null;
+
+            for (GetCapabilitiesWMSLayerRecord layer : getCapabilitiesRecord.getLayers()) {
+                if (layerName.equals(layer.getName())) {
+                    url = layer.getLegendURL();
+                    break;
+                }
+            }
+            return generateJSONResponseMAV(true, url, "");
+
+        } catch (Exception e) {
+            log.warn(String.format("Unable to download WMS legendURL for '%1$s'", serviceUrl));
+            log.debug(e);
+            return generateJSONResponseMAV(false, "", null);
+        }
+    }
+
+    /**
+    * get the default style for point Layer
+    * @param response
+    * @param layerName 
+    * 			the layName 
+    * @throws Exception
+    */    
     @RequestMapping("/getDefaultStyle.do")
     public void getDefaultStyle(
             HttpServletResponse response,
-            @RequestParam("layerName") String layerName)
+            @RequestParam("layerName") String layerName,
+            @RequestParam(required = false, value = "colour") Integer colour)
                     throws Exception {
-
-        String style = this.getStyle(layerName, "#ed9c38");
+        if (colour == null) {
+            colour = 0xed9c38; 
+        }
+        String hexColour="#" + Integer.toHexString(colour);
+        String style = this.getStyle(layerName, hexColour, "POINT");
 
         response.setContentType("text/xml");
 
@@ -335,62 +416,64 @@ public class WMSController extends BaseCSWController {
             @RequestParam("url") String url,
             @RequestParam("layer") String layer,
             @RequestParam("bbox") String bbox,
-            @RequestParam("sldUrl") String sldUrl,
+            @RequestParam(required = false, value = "sldUrl") String sldUrl,
+            @RequestParam(required = false, value = "sldBody") String sldBody,            
             @RequestParam("version") String version,
             @RequestParam("crs") String crs,
             HttpServletResponse response,
             HttpServletRequest request)
-                    throws Exception {
-
+                    throws Exception ,UnsupportedOperationException{
+        if (sldBody == null && sldUrl == null) {
+            throw new Exception("Has to setup sldUrl or sldBody.");
+        }
         response.setContentType("image/png");
-        
-        sldUrl = request.getRequestURL().toString().replace(request.getServletPath(),"").replace("4200", "8080") + sldUrl;
-        
-
-        HttpClientInputStream styleStream = this.wmsService.getMap(url, layer, bbox,sldUrl, version,crs);
+  
+        if (sldBody == null) {
+            sldUrl = request.getRequestURL().toString().replace(request.getServletPath(),"").replace("4200", "8080") + sldUrl;  
+            sldBody = this.wmsService.getStyle(url, sldUrl, version);            
+        }
+        HttpClientInputStream styleStream = this.wmsService.getMap(url, layer, bbox,sldBody, version,crs);
         OutputStream outputStream = response.getOutputStream();
         IOUtils.copy(styleStream,outputStream);
-        //FileIOUtil.writeInputToOutputStream(styleStream, outputStream, 1024, false);
         styleStream.close();
         outputStream.close();
     }
 
-    public String getStyle(String name, String color) {
-        //VT : This is a hack to get around using functions in feature chaining
+    public String getStyle(String name, String color, String spatialType) {
+        // VT : This is a hack to get around using functions in feature chaining
         // https://jira.csiro.au/browse/SISS-1374
         // there are currently no available fix as wms request are made prior to
         // knowing app-schema mapping.
-
-        String style = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        String header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<StyledLayerDescriptor version=\"1.0.0\" xmlns:mo=\"http://xmlns.geoscience.gov.au/minoccml/1.0\" xmlns:er=\"urn:cgi:xmlns:GGIC:EarthResource:1.1\" xsi:schemaLocation=\"http://www.opengis.net/sld StyledLayerDescriptor.xsd\" xmlns:ogc=\"http://www.opengis.net/ogc\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:gml=\"http://www.opengis.net/gml\" xmlns:gsml=\"urn:cgi:xmlns:CGI:GeoSciML:2.0\" xmlns:sld=\"http://www.opengis.net/sld\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">"
-                + "<NamedLayer>" + "<Name>"
-                + name + "</Name>"
-                + "<UserStyle>" + "<Name>portal-style</Name>"
-                + "<Title>" + name + "</Title>"
-                + "<Abstract>EarthResource</Abstract>"
-                + "<IsDefault>1</IsDefault>" + "<FeatureTypeStyle>"
-                + "<Rule>"
-                + "<Name>" + name + "</Name>"
-                + "<Abstract>" + name + "</Abstract>"
-                + "<PointSymbolizer>"
-                + "<Graphic>"
-                + "<Mark>"
-                + "<WellKnownName>circle</WellKnownName>"
-                + "<Fill>"
-                + "<CssParameter name=\"fill\">" + color + "</CssParameter>"
-                + "<CssParameter name=\"fill-opacity\">0.4</CssParameter>"
-                + "</Fill>"
-                + "<Stroke>"
-                + "<CssParameter name=\"stroke\">" + color + "</CssParameter>"  
-                + "<CssParameter name=\"stroke-width\">1</CssParameter>"
-                + "</Stroke>"
-                + "</Mark>"
-                + "<Size>6</Size>"
-                + "</Graphic>"
-                + "</PointSymbolizer>"
-                + "</Rule>"
-                + "</FeatureTypeStyle>"
-                + "</UserStyle>" + "</NamedLayer>" + "</StyledLayerDescriptor>";
+                + "<NamedLayer>" + "<Name>" + name + "</Name>" + "<UserStyle>" + "<Name>portal-style</Name>" + "<Title>"
+                + name + "</Title>" + "<Abstract>Portal-Default-Style</Abstract>" + "<IsDefault>1</IsDefault>"
+                + "<FeatureTypeStyle>";
+        String tail = "</FeatureTypeStyle>" + "</UserStyle>" + "</NamedLayer>" + "</StyledLayerDescriptor>";
+
+        String rule = "";
+
+        switch (spatialType) {
+        case "POLYGON":
+            rule = "<Rule>" + "<Name>AuscopeDefaultPolygon</Name>" + "<PolygonSymbolizer>" + "<Fill>"
+                    + "<CssParameter name=\"fill\">" + color + "</CssParameter>"
+                    + "<CssParameter name=\"fill-opacity\">0.4</CssParameter>" + "</Fill>" + "<Stroke>"
+                    + "<CssParameter name=\"stroke\">" + color + "</CssParameter>"
+                    + "<CssParameter name=\"stroke-width\">0.1</CssParameter>" + "</Stroke>" + "</PolygonSymbolizer>"
+                    + "</Rule>";
+            break;
+        case "POINT":
+        default:
+            rule = "<Rule>" + "<Name>AuscopeDefaultPoint</Name>" + "<Abstract>" + name + "</Abstract>" + "<PointSymbolizer>"
+                    + "<Graphic>" + "<Mark>" + "<WellKnownName>circle</WellKnownName>" + "<Fill>"
+                    + "<CssParameter name=\"fill\">" + color + "</CssParameter>"
+                    + "<CssParameter name=\"fill-opacity\">0.4</CssParameter>" + "</Fill>" + "<Stroke>"
+                    + "<CssParameter name=\"stroke\">" + color + "</CssParameter>"
+                    + "<CssParameter name=\"stroke-width\">1</CssParameter>" + "</Stroke>" + "</Mark>"
+                    + "<Size>8</Size>" + "</Graphic>" + "</PointSymbolizer>" + "</Rule>";
+            break;
+        }
+        String style = header + rule + tail;
         return style;
     }
 
