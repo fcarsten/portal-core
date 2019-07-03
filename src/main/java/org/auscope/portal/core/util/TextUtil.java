@@ -1,9 +1,18 @@
 package org.auscope.portal.core.util;
 
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.List;
 
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
 import org.apache.commons.io.IOUtils;
+import org.w3c.dom.Document;
 
 /**
  * Utility methods for text/string operations.
@@ -84,4 +93,24 @@ public class TextUtil {
     public static String cleanQueryParameter(String param){
     	return param.replace("\"", "");    	
     }
+
+	public static String getStringFromDocument(Document doc)
+	{
+		try
+	    {
+	       DOMSource domSource = new DOMSource(doc);
+	       StringWriter writer = new StringWriter();
+	       StreamResult result = new StreamResult(writer);
+	       TransformerFactory tf = TransformerFactory.newInstance();
+	       Transformer transformer = tf.newTransformer();
+	       transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+	       transformer.transform(domSource, result);
+	       return writer.toString();
+	    }
+	    catch(TransformerException ex)
+	    {
+	       ex.printStackTrace();
+	       return null;
+	    }		
+	}
 }
